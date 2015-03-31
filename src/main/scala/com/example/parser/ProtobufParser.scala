@@ -119,6 +119,7 @@ class ProtobufParser extends RegexParsers {
   lazy val singleLineComment = """//.*""".r
   lazy val multiLineComment = """/\*[^*]*\*+(?:[^*/][^*]*\*+)*/""".r
   lazy val defaultValue = """\[default\s*=\s*([^\]]*)\]""".r
+  val ident = """([a-zA-Z][a-zA-Z0-9_]*)""".r
 
   //case class Message(name: String, body: Seq[Statement]) extends Statement
 
