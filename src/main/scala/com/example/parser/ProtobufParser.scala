@@ -37,6 +37,43 @@ option java_outer_classname = "AddressBookProtos";
       |    repeated Person person = 1; }
     """.stripMargin
 
+  val example2 =
+    """
+      |namespace Common {
+      |    enum CurrencyType {
+      |        USD = 0
+      |    }
+      |
+      |    enum LegMode { unknown, drive, bike, walk, bus, rail, carshare, rideshare, bikeshare }
+      |
+      |    enum RelativeDirection { left, right }
+      |
+      |    enum CompassDirection { N, NE, NW, S, SE, SW, E, W }
+      |
+      |    type LegTime {
+      |        "waitBegin" : ?Date,
+      |        "traversalBegin" : Date,
+      |        "traversalEnd" : Date
+      |    }
+      |
+      |    type Coordinate {
+      |        "type" : "Point",
+      |        "coordinates" : Seq[Double]
+      |    }
+      |
+      |    type Cost {
+      |        "currency" : CurrencyType,
+      |        "average" : ?Decimal,
+      |        "low" : ?Double,
+      |        "high" : ?Double,
+      |        "surgeMultiplier" : ?Double
+      |    }
+      |
+      |    type Context { }
+      |
+      |}
+    """.stripMargin
+
   def main(args: Array[String]) {
     val parser = new ProtobufParser
     val result = parser.parseAll(parser.protobuf, example)
@@ -44,9 +81,36 @@ option java_outer_classname = "AddressBookProtos";
   }
 }
 
+sealed trait BodyElement
+
+case class GelEnum() extends BodyElement
+
+case class GelType() extends BodyElement
+
+case class Namespace(name: String, includes: Option[Seq[String]], definitions: Seq[BodyElement])
+
+class MagellanParser extends RegexParsers {
+  val ident = """([a-zA-Z][a-zA-Z0-9_]*)""".r
+  lazy val source: Parser[Seq[Namespace]] = rep(namespace)
+
+  lazy val namespace: Parser[Namespace] =
+    ("namespace" ~> ident) ~ opt(withClause) ~ ("{" ~> namespaceBody <~ "}") ^^ {
+      case name ~ includes ~ definitions => Namespace(name, includes, definitions)
+    }
+
+  lazy val namespaceBody: Parser[Seq[BodyElement]] = rep(bodyElement)
+
+  lazy val bodyElement: Parser[BodyElement] = enumDef | typeDef
+
+  lazy val enumDef: Parser[GelEnum] = ???
+
+  lazy val typeDef: Parser[GelType] = ???
+
+  lazy val withClause: Parser[Seq[String]] = "with" ~> repsep(ident, ",")
+}
+
 class ProtobufParser extends RegexParsers {
   lazy val intValue = """(0|[1-9][0-9]*)""".r
-  val ident = """([a-zA-Z][a-zA-Z0-9_]*)""".r
   lazy val _package = """package ([a-zA-Z][a-zA-Z0-9_]*);""".r
   lazy val javaPackage = """([a-zA-Z][a-zA-Z0-9_]*(\.[a-zA-Z][a-zA-Z0-9_]*)*)""".r
   lazy val javaOuterClassName = """option java_outer_classname\s*=\s*"([a-zA-Z][a-zA-Z0-9_]*)";""".r
