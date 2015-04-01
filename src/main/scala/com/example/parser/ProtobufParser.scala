@@ -60,7 +60,7 @@ option java_outer_classname = "AddressBookProtos";
       |
       |    struct Coordinate {
       |        "type" : "Point",
-      |        "coordinates" : Seq[Double]
+      |        "coordinates" : [Double]
       |    }
       |
       |    struct Cost {
@@ -126,13 +126,14 @@ case class OptionalFieldType(typeName: String) extends FieldType
 
 case class LiteralFieldType(typeValue: String) extends FieldType
 
+case class RepeatingFieldType(fieldType: FieldType) extends FieldType
+
 case class StandardFieldType(typeName: String) extends FieldType
 
 case class Field(name: String, fieldType: FieldType)
 
 class MagellanParser extends RegexParsers {
   val ident = """([a-zA-Z][a-zA-Z0-9_]*)""".r
-  val typeIdent = """([a-zA-Z][a-zA-Z0-9_\[\]]*)""".r
   val stringIdent = """\"([a-zA-Z][a-zA-Z0-9_]*)\"""".r
   lazy val source: Parser[Seq[Namespace]] = rep(namespace)
 
@@ -140,6 +141,8 @@ class MagellanParser extends RegexParsers {
     ("namespace" ~> ident) ~ opt(includesClause) ~ ("{" ~> namespaceBody <~ "}") ^^ {
       case name ~ includes ~ definitions => Namespace(name, includes, definitions)
     }
+
+  lazy val includesClause: Parser[Seq[String]] = "includes" ~> repsep(ident, ",")
 
   lazy val namespaceBody: Parser[Seq[BodyElement]] = rep(bodyElement)
 
@@ -156,16 +159,16 @@ class MagellanParser extends RegexParsers {
   lazy val field: Parser[Field] = (stringIdent <~ ":") ~ fieldType ^^ { case name ~ typeParameter => Field(name, typeParameter) }
 
   lazy val fieldType: Parser[FieldType] =
-    stringFieldType | optionalFieldType | standardFieldType | compoundFieldType
+    stringFieldType | optionalFieldType | standardFieldType | compoundFieldType | repeatingFieldType
 
   lazy val stringFieldType: Parser[FieldType] = stringIdent ^^ { case string => LiteralFieldType(string) }
 
   lazy val optionalFieldType: Parser[FieldType] = "?" ~> ident ^^ { case typeParameter => OptionalFieldType(typeParameter)}
 
-  lazy val standardFieldType: Parser[FieldType] = typeIdent ^^ { case typeParameter => StandardFieldType(typeParameter)}
+  lazy val standardFieldType: Parser[FieldType] = ident ^^ { case typeParameter => StandardFieldType(typeParameter)}
+
+  lazy val repeatingFieldType: Parser[FieldType] = "[" ~> fieldType <~ "]" ^^ { case typeParameter => RepeatingFieldType(typeParameter)}
 
   lazy val compoundFieldType: Parser[FieldType] = structBody ^^ { case typeParameter => CompoundFieldType(typeParameter)}
-
-  lazy val includesClause: Parser[Seq[String]] = "includes" ~> repsep(ident, ",")
 }
 
