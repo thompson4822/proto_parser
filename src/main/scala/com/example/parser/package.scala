@@ -206,5 +206,35 @@ package object parser {
     "Date"
   )
 
+  var namespaces: Seq[Namespace] = _
 
+
+  var errorMessage: String = _
+
+  // TODO - the following doesn't take into account instances where the user includes a namespace that
+  // doesn't exist. In that case, it is simply ignored.
+  // The following maps a namespace identifier to all the namespaces that should be searched for a user type.
+  lazy val mappings: Map[String, Seq[Namespace]] = {
+    (for {
+      namespace <- namespaces
+      name = namespace.name
+      includeNames = namespace.includes
+      includedNamespaces = namespaces.filter(ns => includeNames.contains(ns.name))
+    } yield name -> (namespace +: includedNamespaces)).toMap
+  }
+
+  // What structs and enums are available to the given namespace?
+  def knownUserTypes(namespace: Namespace, mappings: Map[String, Seq[Namespace]]): Map[String, UserType] = {
+    (for {
+      ns <- mappings.get(namespace.name).get
+      userType <- ns.definitions
+    } yield userType.name -> userType).toMap
+  }
+
+  def isPrimitive(typeName: String): Boolean = primitiveTypes.contains(typeName)
+
+  def isEnum(typeName: String): Boolean = {
+    val enums: Seq[Enum] = namespaces.flatMap(_.definitions).collect{ case definition: Enum => definition }
+    enums.exists(_.name == typeName)
+  }
 }

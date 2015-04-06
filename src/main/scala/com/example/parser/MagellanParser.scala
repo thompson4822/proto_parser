@@ -1,33 +1,11 @@
 package com.example.parser
 
-import scala.util.parsing.combinator.RegexParsers
 import scala.collection.mutable.{Map => MutableMap, Seq => MutableSeq}
+import scala.util.parsing.combinator.RegexParsers
 /**
  * Created by steve on 3/1/15.
  */
 object Main {
-
-  // TODO - the following doesn't take into account instances where the user includes a namespace that
-  // doesn't exist. In that case, it is simply ignoreed.
-  // The following maps a namespace identifier to all the namespaces that should be searched for a user type.
-  def buildMappings(namespaces: Seq[Namespace]): Map[String, Seq[Namespace]] = {
-    (for {
-      namespace <- namespaces
-      name = namespace.name
-      includeNames = namespace.includes
-      includedNamespaces = namespaces.filter(ns => includeNames.contains(ns.name))
-    } yield name -> (namespace +: includedNamespaces)).toMap
-  }
-
-  var errorMessage: String = _
-
-  // What structs and enums are available to the given namespace?
-  def knownUserTypes(namespace: Namespace, mappings: Map[String, Seq[Namespace]]): Map[String, UserType] = {
-    (for {
-      ns <- mappings.get(namespace.name).get
-      userType <- ns.definitions
-    } yield userType.name -> userType).toMap
-  }
 
   // What structs and enums are declared in the given namespace?
   def namespaceUserTypes(namespace: Namespace): Map[String, UserType] = {
@@ -65,10 +43,9 @@ object Main {
     val parser = new MagellanParser
     val result = parser.parseAll(parser.source, example)
     if (result.successful) {
-      val ast = result.get
-      val mappings = buildMappings(ast)
-      if(typeCheck(ast, mappings))
-        generateUsing(ast, mappings)
+      namespaces = result.get
+      if(typeCheck(namespaces, mappings))
+        generateUsing(namespaces, mappings)
       else
         println(errorMessage)
     } else {
@@ -198,22 +175,6 @@ case class CompoundFieldType(fields: FieldCollection) extends FieldType {
   override def toProtobuf: String = ???
 }
 
-case class RepeatingFieldType(typeName: String) extends FieldType {
-  override def isValidType(checker: String => Boolean): Boolean = checker(typeName)
-
-  override def toScala: String = s"Seq[$typeName]"
-
-  override def toProtobuf: String = ???
-}
-
-case class OptionalFieldType(typeName: String) extends FieldType {
-  override def isValidType(checker: String => Boolean): Boolean = checker(typeName)
-
-  override def toScala: String = s"Option[$typeName]"
-
-  override def toProtobuf: String = ???
-}
-
 case class LiteralFieldType(typeValue: String) extends FieldType {
   override def isValidType(checker: String => Boolean): Boolean = true
 
@@ -222,9 +183,25 @@ case class LiteralFieldType(typeValue: String) extends FieldType {
   override def toProtobuf: String = ???
 }
 
-case class StandardFieldType(typeName: String) extends FieldType {
-  override def isValidType(checker: String => Boolean): Boolean = checker(typeName)
+trait AtomicFieldType extends FieldType {
+  def typeName: String
 
+  override def isValidType(checker: String => Boolean): Boolean = checker(typeName)
+}
+
+case class RepeatingFieldType(typeName: String) extends AtomicFieldType {
+  override def toScala: String = s"Seq[$typeName]"
+
+  override def toProtobuf: String = ???
+}
+
+case class OptionalFieldType(typeName: String) extends AtomicFieldType {
+  override def toScala: String = s"Option[$typeName]"
+
+  override def toProtobuf: String = ???
+}
+
+case class StandardFieldType(typeName: String) extends AtomicFieldType {
   override def toScala: String = typeName
 
   override def toProtobuf: String = ???
@@ -236,7 +213,6 @@ case class Field(name: String, fieldType: FieldType) {
 
 class MagellanParser extends RegexParsers {
   val ident = """([a-zA-Z][a-zA-Z0-9_]*)""".r
-  //val stringIdent = """([a-zA-Z][a-zA-Z0-9_]*)""".r
   lazy val source: Parser[Seq[Namespace]] = rep(namespace)
 
   lazy val namespace: Parser[Namespace] =
